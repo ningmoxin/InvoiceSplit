@@ -851,14 +851,16 @@ async function handleExpenseSubmit(e) {
     const participants = {};
     checkedBoxes.forEach(checkbox => {
         const memberId = checkbox.value;
-        participants[memberId] = {};
 
         if (splitMethod === 'ratio') {
             const input = document.querySelector(`#splitDetails input[data-member="${memberId}"]`);
-            participants[memberId].ratio = parseInt(input?.value) || 1;
+            participants[memberId] = { ratio: parseInt(input?.value) || 1 };
         } else if (splitMethod === 'exact') {
             const input = document.querySelector(`#splitDetails input[data-member="${memberId}"]`);
-            participants[memberId].amount = parseFloat(input?.value) || 0;
+            participants[memberId] = { amount: parseFloat(input?.value) || 0 };
+        } else {
+            // equal - 給一個標記值，避免 Firebase 忽略空物件
+            participants[memberId] = { included: true };
         }
     });
 
