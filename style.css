@@ -636,6 +636,12 @@ body {
     font-size: 14px;
 }
 
+.split-hint {
+    font-size: 13px;
+    color: var(--text-secondary);
+    margin-bottom: 4px;
+}
+
 /* ===== Modal ===== */
 .modal {
     position: fixed;

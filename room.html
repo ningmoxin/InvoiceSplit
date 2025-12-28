@@ -131,11 +131,10 @@
                     <input type="number" id="expenseAmount" placeholder="0" min="1" required>
                 </div>
                 <div class="form-group">
-                    <label for="expensePaidBy">付款人</label>
-                    <select id="expensePaidBy" required>
-                        <option value="">選擇付款人</option>
-                    </select>
+                    <label>付款人（可多選，並輸入各自付款金額）</label>
+                    <div id="payersCheckbox" class="checkbox-group"></div>
                 </div>
+                <div id="payerAmounts" class="split-details hidden"></div>
                 <div class="form-group">
                     <label>參與者</label>
                     <div id="participantsCheckbox" class="checkbox-group"></div>

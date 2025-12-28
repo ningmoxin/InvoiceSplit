@@ -459,7 +459,6 @@ function calculateBalances() {
 
     // Calculate from expenses
     Object.values(expenses).forEach(expense => {
-        const paidBy = expense.paidBy;
         const amount = expense.amount;
         const participants = expense.participants || {};
         const participantIds = Object.keys(participants);
@@ -484,9 +483,16 @@ function calculateBalances() {
             });
         }
 
-        // Update balances
-        // Payer gets credit
-        balances[paidBy] = (balances[paidBy] || 0) + amount;
+        // Update balances - Payers get credit (支援多付款人)
+        if (expense.payers) {
+            // 新格式：多付款人
+            Object.entries(expense.payers).forEach(([payerId, payerData]) => {
+                balances[payerId] = (balances[payerId] || 0) + (payerData.amount || 0);
+            });
+        } else if (expense.paidBy) {
+            // 舊格式：單一付款人
+            balances[expense.paidBy] = (balances[expense.paidBy] || 0) + amount;
+        }
 
         // Participants get debit
         Object.entries(shares).forEach(([id, share]) => {
@@ -563,7 +569,18 @@ function updateExpensesList() {
         .sort((a, b) => b[1].createdAt - a[1].createdAt);
 
     listEl.innerHTML = sortedExpenses.map(([id, expense]) => {
-        const payer = members[expense.paidBy]?.name || '未知';
+        // 取得付款人顯示文字（支援多付款人）
+        let payerText = '';
+        if (expense.payers) {
+            const payerNames = Object.keys(expense.payers)
+                .map(payerId => members[payerId]?.name || '未知');
+            payerText = payerNames.length > 2
+                ? `${payerNames[0]} 等${payerNames.length}人`
+                : payerNames.join('、');
+        } else if (expense.paidBy) {
+            payerText = members[expense.paidBy]?.name || '未知';
+        }
+
         const participantCount = Object.keys(expense.participants || {}).length;
         const isCreator = expense.createdBy === currentUser.odId;
         const isEnded = currentRoom?.info?.status === 'ended';
@@ -584,7 +601,7 @@ function updateExpensesList() {
                     <span class="expense-amount">${formatCurrency(expense.amount)}</span>
                 </div>
                 <div class="expense-meta">
-                    <span>${escapeHtml(payer)} 付款 · ${splitText}</span>
+                    <span>${escapeHtml(payerText)} 付款 · ${splitText}</span>
                     <div class="expense-actions">
                         ${isCreator && !isEnded ? `
                             <button class="btn-icon" onclick="editExpense('${id}')" title="編輯">
@@ -774,13 +791,16 @@ function showExpenseModal(expenseId = null) {
     form.reset();
     document.getElementById('expenseId').value = '';
     document.getElementById('splitDetails').classList.add('hidden');
+    document.getElementById('payerAmounts').classList.add('hidden');
 
-    // Update payer select
-    const payerSelect = document.getElementById('expensePaidBy');
-    payerSelect.innerHTML = '<option value="">選擇付款人</option>' +
-        Object.entries(members).map(([id, member]) =>
-            `<option value="${id}">${escapeHtml(member.name)}</option>`
-        ).join('');
+    // Update payers checkboxes (多付款人)
+    const payersCheckbox = document.getElementById('payersCheckbox');
+    payersCheckbox.innerHTML = Object.entries(members).map(([id, member]) =>
+        `<div class="checkbox-item">
+            <input type="checkbox" id="payer_${id}" value="${id}">
+            <label for="payer_${id}">${escapeHtml(member.name)}</label>
+        </div>`
+    ).join('');
 
     // Update participants checkboxes
     const checkboxGroup = document.getElementById('participantsCheckbox');
@@ -799,8 +819,28 @@ function showExpenseModal(expenseId = null) {
         document.getElementById('expenseId').value = expenseId;
         document.getElementById('expenseTitle').value = expense.title;
         document.getElementById('expenseAmount').value = expense.amount;
-        document.getElementById('expensePaidBy').value = expense.paidBy;
         document.getElementById('splitMethod').value = expense.splitMethod;
+
+        // Check payers and fill amounts (支援新舊格式)
+        if (expense.payers) {
+            // 新格式：多付款人
+            Object.keys(expense.payers).forEach(id => {
+                const checkbox = document.getElementById(`payer_${id}`);
+                if (checkbox) checkbox.checked = true;
+            });
+            updatePayerAmounts();
+            Object.entries(expense.payers).forEach(([id, data]) => {
+                const input = document.querySelector(`#payerAmounts input[data-payer="${id}"]`);
+                if (input) input.value = data.amount;
+            });
+        } else if (expense.paidBy) {
+            // 舊格式：單一付款人
+            const checkbox = document.getElementById(`payer_${expense.paidBy}`);
+            if (checkbox) checkbox.checked = true;
+            updatePayerAmounts();
+            const input = document.querySelector(`#payerAmounts input[data-payer="${expense.paidBy}"]`);
+            if (input) input.value = expense.amount;
+        }
 
         // Check participants
         Object.keys(expense.participants || {}).forEach(id => {
@@ -824,6 +864,35 @@ function showExpenseModal(expenseId = null) {
     }
 
     modal.classList.remove('hidden');
+}
+
+function updatePayerAmounts() {
+    const payerAmountsEl = document.getElementById('payerAmounts');
+    const checkedPayers = document.querySelectorAll('#payersCheckbox input:checked');
+
+    if (checkedPayers.length === 0) {
+        payerAmountsEl.classList.add('hidden');
+        return;
+    }
+
+    // 只有多人付款時才顯示金額輸入
+    if (checkedPayers.length === 1) {
+        payerAmountsEl.classList.add('hidden');
+        return;
+    }
+
+    payerAmountsEl.classList.remove('hidden');
+    payerAmountsEl.innerHTML = '<p class="split-hint">請輸入每人付款金額：</p>' +
+        Array.from(checkedPayers).map(checkbox => {
+            const memberId = checkbox.value;
+            const memberName = members[memberId]?.name || '';
+            return `
+                <div class="split-row">
+                    <label>${escapeHtml(memberName)}</label>
+                    <input type="number" data-payer="${memberId}" placeholder="0" min="0" step="1">
+                </div>
+            `;
+        }).join('');
 }
 
 function updateSplitDetails() {
@@ -861,8 +930,39 @@ async function handleExpenseSubmit(e) {
     const expenseId = document.getElementById('expenseId').value || generateId();
     const title = document.getElementById('expenseTitle').value.trim();
     const amount = parseFloat(document.getElementById('expenseAmount').value);
-    const paidBy = document.getElementById('expensePaidBy').value;
     const splitMethod = document.getElementById('splitMethod').value;
+
+    // Get payers (多付款人)
+    const checkedPayers = document.querySelectorAll('#payersCheckbox input:checked');
+    if (checkedPayers.length === 0) {
+        showToast('請選擇至少一位付款人', 'error');
+        hideLoading();
+        return;
+    }
+
+    const payers = {};
+    if (checkedPayers.length === 1) {
+        // 單一付款人，金額就是總金額
+        const payerId = checkedPayers[0].value;
+        payers[payerId] = { amount: amount };
+    } else {
+        // 多付款人，從輸入框取得各自金額
+        let payerTotal = 0;
+        checkedPayers.forEach(checkbox => {
+            const payerId = checkbox.value;
+            const input = document.querySelector(`#payerAmounts input[data-payer="${payerId}"]`);
+            const payerAmount = parseFloat(input?.value) || 0;
+            payers[payerId] = { amount: payerAmount };
+            payerTotal += payerAmount;
+        });
+
+        // 驗證付款人金額總和
+        if (Math.abs(payerTotal - amount) > 0.01) {
+            showToast(`付款人金額總和 (${formatCurrency(payerTotal)}) 必須等於費用金額 (${formatCurrency(amount)})`, 'error');
+            hideLoading();
+            return;
+        }
+    }
 
     // Get participants
     const checkedBoxes = document.querySelectorAll('#participantsCheckbox input:checked');
@@ -901,7 +1001,7 @@ async function handleExpenseSubmit(e) {
     const expenseData = {
         title,
         amount,
-        paidBy,
+        payers,  // 新格式：多付款人
         createdBy: document.getElementById('expenseId').value ? expenses[expenseId].createdBy : currentUser.odId,
         createdAt: document.getElementById('expenseId').value ? expenses[expenseId].createdAt : Date.now(),
         splitMethod,
@@ -1110,9 +1210,12 @@ function escapeHtml(text) {
     return div.innerHTML;
 }
 
-// Add event listener for participant checkbox changes
+// Add event listener for checkbox changes
 document.addEventListener('change', (e) => {
     if (e.target.matches('#participantsCheckbox input[type="checkbox"]')) {
         updateSplitDetails();
+    }
+    if (e.target.matches('#payersCheckbox input[type="checkbox"]')) {
+        updatePayerAmounts();
     }
 });
