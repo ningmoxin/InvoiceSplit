@@ -458,6 +458,12 @@ body {
     font-size: 14px;
 }
 
+.member-actions {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
 /* ===== Settlement ===== */
 .settlement-summary,
 .transfer-guide {

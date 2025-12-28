@@ -623,6 +623,20 @@ function updateMembersList() {
         const balance = balances[id] || 0;
         const initial = member.name.charAt(0).toUpperCase();
         const isAdmin = currentRoom.info.createdBy === id;
+        const isEnded = currentRoom?.info?.status === 'ended';
+
+        // 檢查此成員是否有參與任何費用
+        const hasExpenses = Object.values(expenses).some(expense =>
+            expense.paidBy === id || (expense.participants && expense.participants[id])
+        );
+
+        // 檢查此成員是否有付款記錄
+        const hasPayments = Object.values(payments).some(payment =>
+            payment.from === id || payment.to === id
+        );
+
+        // 只有臨時成員、無費用關聯、活動未結束時可刪除
+        const canDelete = member.isTemp && !hasExpenses && !hasPayments && !isEnded;
 
         let balanceText = '';
         let balanceClass = '';
@@ -646,7 +660,17 @@ function updateMembersList() {
                         ${member.isTemp ? '<span class="member-tag">臨時</span>' : ''}
                     </span>
                 </div>
-                <span class="member-balance ${balanceClass}">${balanceText}</span>
+                <div class="member-actions">
+                    <span class="member-balance ${balanceClass}">${balanceText}</span>
+                    ${canDelete ? `
+                        <button class="btn-icon" onclick="deleteTempMember('${id}')" title="刪除">
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <polyline points="3 6 5 6 21 6"></polyline>
+                                <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
+                            </svg>
+                        </button>
+                    ` : ''}
+                </div>
             </div>
         `;
     }).join('');
@@ -947,6 +971,37 @@ async function deleteExpense(expenseId) {
         showToast('費用已刪除', 'success');
     } catch (error) {
         console.error('Delete expense error:', error);
+        showToast('刪除失敗', 'error');
+    } finally {
+        hideLoading();
+    }
+}
+
+async function deleteTempMember(memberId) {
+    const member = members[memberId];
+    if (!member || !member.isTemp) {
+        showToast('只能刪除臨時成員', 'error');
+        return;
+    }
+
+    // 再次確認此成員沒有參與任何費用
+    const hasExpenses = Object.values(expenses).some(expense =>
+        expense.paidBy === memberId || (expense.participants && expense.participants[memberId])
+    );
+
+    if (hasExpenses) {
+        showToast('此成員有參與費用，無法刪除', 'error');
+        return;
+    }
+
+    if (!confirm(`確定要刪除臨時成員「${member.name}」？`)) return;
+
+    showLoading();
+    try {
+        await db.ref(`rooms/${currentRoom.code}/members/${memberId}`).remove();
+        showToast('成員已刪除', 'success');
+    } catch (error) {
+        console.error('Delete member error:', error);
         showToast('刪除失敗', 'error');
     } finally {
         hideLoading();
