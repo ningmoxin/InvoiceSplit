@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>InvoiceSplit - 分帳神器</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div class="container">
+        <header class="header">
+            <h1 class="logo">InvoiceSplit</h1>
+            <p class="tagline">輕鬆分帳，友誼長存</p>
+        </header>
+
+        <main class="main">
+            <!-- 建立新活動 -->
+            <section class="card">
+                <h2 class="card-title">建立新活動</h2>
+                <form id="createForm" class="form">
+                    <div class="form-group">
+                        <label for="eventName">活動名稱</label>
+                        <input type="text" id="eventName" placeholder="例如：週末聚餐" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="adminPassword">管理密碼</label>
+                        <input type="password" id="adminPassword" placeholder="用於結束活動等管理功能" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="creatorName">您的姓名</label>
+                        <input type="text" id="creatorName" placeholder="您將成為活動管理者" required>
+                    </div>
+                    <button type="submit" class="btn btn-primary">建立活動</button>
+                </form>
+            </section>
+
+            <div class="divider">
+                <span>或</span>
+            </div>
+
+            <!-- 加入活動 -->
+            <section class="card">
+                <h2 class="card-title">加入活動</h2>
+                <form id="joinForm" class="form">
+                    <div class="form-group">
+                        <label for="roomCode">活動代碼</label>
+                        <input type="text" id="roomCode" placeholder="輸入 6 碼活動代碼" maxlength="6" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="memberName">您的姓名</label>
+                        <input type="text" id="memberName" placeholder="輸入您的姓名" required>
+                    </div>
+                    <button type="submit" class="btn btn-secondary">加入活動</button>
+                </form>
+            </section>
+        </main>
+
+        <footer class="footer">
+            <p>InvoiceSplit &copy; 2025</p>
+        </footer>
+    </div>
+
+    <!-- Loading Overlay -->
+    <div id="loadingOverlay" class="loading-overlay hidden">
+        <div class="spinner"></div>
+    </div>
+
+    <!-- Toast -->
+    <div id="toast" class="toast hidden"></div>
+
+    <!-- Firebase SDK -->
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-database-compat.js"></script>
+    <script src="app.js"></script>
+</body>
+</html>
